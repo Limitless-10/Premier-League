@@ -2,6 +2,8 @@
 library(rstan)
 library(tidyverse)
 
+#### Simulation of data
+
 # Initialise data
 n_teams <- 5
 
@@ -17,7 +19,5 @@ generate_game_data <- function(n_games,n_teams) {
   
 }
 
-# Test file
-
-print("Hello World")
+# 
 
