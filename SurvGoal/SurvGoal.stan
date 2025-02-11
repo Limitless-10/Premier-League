@@ -46,28 +46,34 @@ transformed data {
 }
 // parameters
 parameters {
-  vector[5] theta;
+  // vector[5] theta;
   real<lower=0> sigma;
-  
+  real<lower=0> gamma_weight; // shape parameter
+  vector[2] att;
+  vector[2] def;
+  real mu;
+  real home;
 }
 // transformed parameters 
 transformed parameters {
-  real mu;
-  real home;
   vector[2] lambda;
-  vector[2] att;
-  vector[2] def;
   
-  lambda[1] = exp(mu + home + att[1] + def[2])
+  lambda[1] = exp(mu + home + att[1] + def[2]);
+  lambda[2] = exp(mu + att[2] + def[1]);
 }
 // model
 model {
   // priors
-  sigma ~ cauchy(0,5); // prior for sigma
-  theta ~ normal(0,1); // prior for theta
+  // sigma ~ cauchy(0,5); // prior for sigma
+  home ~ normal(0,100); // prior for home parameter
+  mu ~ normal(0,100); // prior for home parameter
+  att ~ normal(0,100); // prior for home parameter
+  def ~ normal(0,100); // prior for home parameter
+  gamma_weight ~ gamma(0.001, 0.001);
+  
   
   // likelihood
-  target += surv_weibull_lpdf(y[,1]|y[,2],sigma,lambda); //model for data, team 1 (home)
-  target += surv_weibull_lpdf(y[,3]|y[,4],sigma,lambda); //model for data, team 2 (away)
+  target += surv_weibull_lpdf(y[,1]|y[,2],gamma_weight,rep_vector(lambda[1], N)); //model for data, team 1 (home)
+  target += surv_weibull_lpdf(y[,3]|y[,4],gamma_weight,rep_vector(lambda[2], N)); //model for data, team 2 (away)
 }
 

@@ -1,12 +1,10 @@
 # Load relevant libraries
 library(tidyverse)
 library(rstan)
-library(worldfootballR)
+library(worldfootballR) # For most scraping functions
 
 ## install.packages("devtools")
 # devtools::install_github("JaseZiv/worldfootballR")
-
-
 
 # Fetch Arsenal's matches from the 2023/24 EPL season
 arsenal_matches <- understat_team_stats_breakdown(
@@ -54,61 +52,77 @@ for (match_id in match_urls) {
 # Combine into a single dataframe
 arsenal_goal_times <- bind_rows(goal_times, .id = "match_id")
 
-# For demonstration, assume every game ends at 95 minutes.
-# (In practice, you might merge in a game_end column from your match metadata.)
 game_end_time <- 95
-
-# Define a function that processes one match’s goal events.
-process_match <- function(df_match, game_end_time) {
-  # Ensure events are sorted by minute
+process_match <- function(df_match, default_end_time = 95) {
+  
+  # Sort events by minute
   df_match <- df_match %>% arrange(minute)
   
-  print(df_match)
+  if (nrow(df_match) == 0) {
+    return(tibble(
+      minute    = default_end_time,
+      team      = NA_character_,
+      player    = NA_character_,
+      home_away = NA_character_,
+      match_id  = NA_real_,
+      T         = default_end_time,
+      T_star    = default_end_time,
+      H         = NA_real_,
+      C         = 1,
+      t_home    = NA_real_,
+      t_away    = NA_real_,
+      c_home    = default_end_time,
+      c_away    = default_end_time
+    ))
+  }
   
-  # Compute the time interval T.
-  # For the first event, T equals the minute; for later events, it is the difference from the previous event.
-  df_match <- df_match %>%
-    mutate(T = minute - lag(minute, default = 0),
-           T_star = minute)  # T_star is the actual event time
+  # Get the max minute from the current match's goal events
+  max_goal_minute <- max(df_match$minute, na.rm = TRUE)
   
-  # Create the home indicator: H = 1 if Arsenal was at home (home_away == "h"), 0 if away.
-  df_match <- df_match %>%
-    mutate(H = ifelse(home_away == "h", 1, 0),
-           C = 0)  # Actual goal events are not censoring events
+  # If the last goal minute > default_end_time, use (that minute + 1)
+  if (max_goal_minute > default_end_time) {
+    this_end_time <- max_goal_minute + 1
+  } else {
+    this_end_time <- default_end_time
+  }
   
-  # Now assign goal arrival times and censoring times.
   df_match <- df_match %>%
+    mutate(
+      T      = minute - lag(minute, default = 0),
+      T_star = minute, # actual clock time of the event
+      H      = ifelse(home_away == "h", 1, 0),  # 1 if home, 0 if away
+      C      = 0      # goals are not censoring events
+    ) %>%
     mutate(
       t_home = ifelse(H == 1, T, NA_real_),
       t_away = ifelse(H == 0, T, NA_real_),
-      c_home = ifelse(H == 1, 0, T),
-      c_away = ifelse(H == 0, 0, T)
+      c_home = ifelse(H == 1, 0, T),   # censoring time for home if away scored
+      c_away = ifelse(H == 0, 0, T)    # censoring time for away if home scored
     )
   
-  # Compute the final censoring (end-of-game) interval.
-  last_minute <- max(df_match$minute)
-  censor_interval <- game_end_time - last_minute
+  last_minute     <- max(df_match$minute)
+  censor_interval <- this_end_time - last_minute
   
-  # Create a final row for censoring.
   censor_row <- tibble(
-    minute    = game_end_time,
+    minute    = this_end_time,
     team      = NA_character_,
     player    = NA_character_,
     home_away = NA_character_,
     match_id  = unique(df_match$match_id),
     T         = censor_interval,
-    T_star    = game_end_time,
-    # Here we simply carry forward the last event's H (this choice may be adjusted)
-    H         = if(nrow(df_match) > 0) last(df_match$H) else NA_real_,
-    C         = 1,   # This is a censoring observation.
+    T_star    = this_end_time,
+    # We'll carry forward the last event's H or set to NA if you prefer
+    H         = if (nrow(df_match) > 0) last(df_match$H) else NA_real_,
+    C         = 1,  # This indicates it's a censoring row
     t_home    = NA_real_,
     t_away    = NA_real_,
     c_home    = censor_interval,
     c_away    = censor_interval
   )
   
-  # Bind the goal events and the censoring row.
+  # Combine goal events + final censoring row
   df_out <- bind_rows(df_match, censor_row)
+  
   return(df_out)
 }
 
@@ -120,6 +134,10 @@ converted_data <- arsenal_goal_times %>%
 
 # View the new (converted) data
 print(converted_data)
+
+### Fit the stan model
+
+stanmod <- stan_model("SurvGoal.stan")
 
 
 
