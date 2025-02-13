@@ -137,9 +137,12 @@ print(converted_data)
 
 ### Fit the stan model
 
+stan_data <- list(y=converted_data[, c("t_home", "t_away", "c_home", "c_away")],
+                  N = nrow(converted_data))
+
 stanmod <- stan_model("SurvGoal.stan")
 
-
+fit <- sampling(stanmod, data = stan_data, chains = 4, iter = 2000)
 
 
 ######################## Commands maybe worth remembering
