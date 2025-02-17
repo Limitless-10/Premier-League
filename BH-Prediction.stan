@@ -37,13 +37,13 @@ model {
   // ------------------- PRIORS ------------------- 
   // In WinBUGS: dnorm(0, 0.0001) means Normal(0, precision=0.0001),
   // which translates to Normal(0, sd = 1/sqrt(0.0001) = 100).
-  home   ~ normal(0, 100);
-  mu_att ~ normal(0, 100);
-  mu_def ~ normal(0, 100);
+  home   ~ normal(0, 5);
+  mu_att ~ normal(0, 5);
+  mu_def ~ normal(0, 5);
 
   // In WinBUGS: dgamma(0.01, 0.01) => shape=0.01, rate=0.01 => mean=1, very wide
-  tau_att ~ gamma(0.01, 0.01);
-  tau_def ~ gamma(0.01, 0.01);
+  tau_att ~ gamma(3, 0.27); 
+  tau_def ~ gamma(3, 0.27);
 
   // Attack/defense random effects
   // WinBUGS: att.star[t] ~ dnorm(mu.att, tau.att)
@@ -75,4 +75,6 @@ generated quantities {
     ynew[g,1] = poisson_rng(theta1);
     ynew[g,2] = poisson_rng(theta2);
   }
+  
+  int yrep1[ngames] = ynew[,1];
 }
